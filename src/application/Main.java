@@ -1,10 +1,5 @@
 package application;
 
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.Locale;
@@ -22,58 +17,7 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
 public class Main extends Application {
-	private final static String URL = "jdbc:mysql://localhost:3306/hospital_db";
-	private final static String USER = "root";
-	private final static String PASSWORD = "123456";
-
-	static class Patient {
-		private int id;
-		private String name;
-		private int age;
-		private String gender;
-		private String phone;
-		private String diagnosis;
-		private LocalDate admissionDate;
-
-		Patient(int id, String name, int age, String gender, String phone, String diagnosis,
-				LocalDate admissionDate) {
-			this.id = id;
-			this.name = name;
-			this.age = age;
-			this.gender = gender;
-			this.phone = phone;
-			this.diagnosis = diagnosis;
-			this.admissionDate = admissionDate;
-		}
-
-		public int getId() {
-			return id;
-		}
-
-		public String getName() {
-			return name;
-		}
-
-		public int getAge() {
-			return age;
-		}
-
-		public String getGender() {
-			return gender;
-		}
-
-		public String getPhone() {
-			return phone;
-		}
-
-		public String getDiagnosis() {
-			return diagnosis;
-		}
-
-		public LocalDate getAdmissionDate() {
-			return admissionDate;
-		}
-	}
+	private PatientDAO dao = new PatientDAO();
 
 	private TextField idField = new TextField();
 	private TextField nameField = new TextField();
@@ -195,7 +139,7 @@ public class Main extends Application {
 				return;
 			}
 			try {
-				insert(p);
+				dao.insert(p);
 				loadPatients("");
 				clearForm();
 				showSuccess("Patient added: " + p.getName());
@@ -218,7 +162,7 @@ public class Main extends Application {
 				return;
 			}
 			try {
-				update(p);
+				dao.update(p);
 				loadPatients("");
 				clearForm();
 				showSuccess("Patient ID " + p.getId() + " updated.");
@@ -245,7 +189,7 @@ public class Main extends Application {
 				return;
 			}
 			try {
-				delete(selected.getId());
+				dao.delete(selected.getId());
 				loadPatients("");
 				clearForm();
 				showSuccess("Patient ID " + selected.getId() + " deleted.");
@@ -271,8 +215,9 @@ public class Main extends Application {
 				showError("Enter a name or phone to search.");
 				return;
 			}
-			loadPatients(keyword);
-			showSuccess(table.getItems().size() + " record(s) found.");
+			if (loadPatients(keyword)) {
+				showSuccess(table.getItems().size() + " record(s) found.");
+			}
 		}
 	}
 
@@ -299,70 +244,14 @@ public class Main extends Application {
 		}
 	}
 
-	public void insert(Patient p) throws SQLException {
-		String sql = "INSERT INTO patients (name, age, gender, phone, diagnosis, admission_date) VALUES (?, ?, ?, ?, ?, ?)";
-		try (Connection con = DriverManager.getConnection(URL, USER, PASSWORD);
-				PreparedStatement ps = con.prepareStatement(sql)) {
-			ps.setString(1, p.getName());
-			ps.setInt(2, p.getAge());
-			ps.setString(3, p.getGender());
-			ps.setString(4, p.getPhone());
-			ps.setString(5, p.getDiagnosis());
-			ps.setDate(6, Date.valueOf(p.getAdmissionDate()));
-			ps.executeUpdate();
-		}
-	}
-
-	public void update(Patient p) throws SQLException {
-		String sql = "UPDATE patients SET name = ?, age = ?, gender = ?, phone = ?, diagnosis = ?, admission_date = ? WHERE patient_id = ?";
-		try (Connection con = DriverManager.getConnection(URL, USER, PASSWORD);
-				PreparedStatement ps = con.prepareStatement(sql)) {
-			ps.setString(1, p.getName());
-			ps.setInt(2, p.getAge());
-			ps.setString(3, p.getGender());
-			ps.setString(4, p.getPhone());
-			ps.setString(5, p.getDiagnosis());
-			ps.setDate(6, Date.valueOf(p.getAdmissionDate()));
-			ps.setInt(7, p.getId());
-			ps.executeUpdate();
-		}
-	}
-
-	public void delete(int id) throws SQLException {
-		String sql = "DELETE FROM patients WHERE patient_id = ?";
-		try (Connection con = DriverManager.getConnection(URL, USER, PASSWORD);
-				PreparedStatement ps = con.prepareStatement(sql)) {
-			ps.setInt(1, id);
-			ps.executeUpdate();
-		}
-	}
-
-	private void loadPatients(String keyword) {
-		String sql = "SELECT patient_id, name, age, gender, phone, diagnosis, admission_date FROM patients WHERE name LIKE ? OR phone LIKE ? ORDER BY patient_id";
-		try (Connection con = DriverManager.getConnection(URL, USER, PASSWORD);
-				PreparedStatement ps = con.prepareStatement(sql)) {
-			ps.setString(1, "%" + keyword + "%");
-			ps.setString(2, "%" + keyword + "%");
-			try (ResultSet rs = ps.executeQuery()) {
-				table.getItems().clear();
-				while (rs.next()) {
-					table.getItems().add(mapPatient(rs));
-				}
-			}
+	private boolean loadPatients(String keyword) {
+		try {
+			table.getItems().setAll(dao.find(keyword));
+			return true;
 		} catch (SQLException ex) {
 			showError(ex.getMessage());
+			return false;
 		}
-	}
-
-	private Patient mapPatient(ResultSet rs) throws SQLException {
-		return new Patient(
-				rs.getInt("patient_id"),
-				rs.getString("name"),
-				rs.getInt("age"),
-				rs.getString("gender"),
-				rs.getString("phone"),
-				rs.getString("diagnosis"),
-				rs.getDate("admission_date").toLocalDate());
 	}
 
 	private Patient readForm(int id) {
